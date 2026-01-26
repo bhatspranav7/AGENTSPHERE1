@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:15
+    container_name: agentsphere_postgres
+    environment:
+      POSTGRES_USER: agentsphere
+      POSTGRES_PASSWORD: agentsphere
+      POSTGRES_DB: agentsphere_db
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    container_name: agentsphere_redis
+    ports:
+      - "6379:6379"
