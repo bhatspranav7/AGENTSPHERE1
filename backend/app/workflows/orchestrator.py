@@ -1,25 +1,42 @@
-from app.workflows.task_graph import TaskGraph
-from app.models.agent_log import AgentLog
-from app.db.session import SessionLocal
+import uuid
+from typing import Dict, Any
 
+from app.agents.research_agent import ResearchAgent
+from app.agents.supervisor_agent import SupervisorAgent
 
-class Orchestrator:
-    """
-    Orchestrator controls execution of a TaskGraph.
-    """
+class WorkflowOrchestrator:
 
-    def execute(self, task_graph: TaskGraph):
-        db = SessionLocal()
+    def __init__(self):
+        self.research_agent = ResearchAgent()
+        self.supervisor = SupervisorAgent()
 
-        for task in task_graph.tasks:
-            log = AgentLog(
-                agent_name=task.agent,
-                action=task.action,
-                status="EXECUTED"
+    def execute(self, topic: str) -> Dict[str, Any]:
+        workflow_id = str(uuid.uuid4())
+        attempt = 0
+
+        while True:
+            output = self.research_agent.run(topic, workflow_id)
+
+            supervisor_decision = self.supervisor.supervise(
+                agent_name=self.research_agent.name,
+                output=output,
+                attempt=attempt,
+                workflow_id=workflow_id
             )
-            db.add(log)
 
-            task.status = "COMPLETED"
+            if supervisor_decision["decision"] == "APPROVE":
+                return {
+                    "workflow_id": workflow_id,
+                    "status": "SUCCESS",
+                    "result": output,
+                    "supervisor": supervisor_decision
+                }
 
-        db.commit()
-        db.close()
+            if supervisor_decision["decision"] == "ABORT":
+                return {
+                    "workflow_id": workflow_id,
+                    "status": "FAILED",
+                    "supervisor": supervisor_decision
+                }
+
+            attempt += 1

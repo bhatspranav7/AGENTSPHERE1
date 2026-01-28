@@ -1,42 +1,61 @@
-from typing import Dict, List
-from app.workflows.task_graph import Task, TaskGraph
-import uuid
+# app/agents/planner_agent.py
+
+import os
+from typing import List, Dict
 
 
 class PlannerAgent:
-    """
-    PlannerAgent is responsible for converting a user request
-    into a structured execution plan (TaskGraph).
-    """
+    def __init__(self):
+        self.llm_enabled = False
+        self.client = None
 
-    def plan(self, workflow_id: int, user_request: str) -> TaskGraph:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key:
+            try:
+                from openai import OpenAI
+                self.client = OpenAI(api_key=api_key)
+                self.llm_enabled = True
+            except Exception as e:
+                print(f"⚠️ OpenAI disabled: {e}")
+
+    def plan(self, query: str) -> List[Dict]:
         """
-        This is where an LLM will be used later.
-        For now, we simulate a deterministic enterprise-style plan.
+        If LLM is enabled → use it
+        Else → fallback static planner
         """
 
-        tasks: List[Task] = [
-            Task(
-                task_id=str(uuid.uuid4()),
-                agent="research_agent",
-                action="research_topic",
-                input={"query": user_request},
-            ),
-            Task(
-                task_id=str(uuid.uuid4()),
-                agent="code_agent",
-                action="generate_solution",
-                input={"context": "research results"},
-            ),
-            Task(
-                task_id=str(uuid.uuid4()),
-                agent="automation_agent",
-                action="trigger_output",
-                input={"destination": "user"},
-            ),
+        if self.llm_enabled:
+            return self._llm_plan(query)
+
+        # 🔹 SAFE FALLBACK (NO LLM)
+        return [
+            {
+                "agent": "research_agent",
+                "input": {"query": query}
+            },
+            {
+                "agent": "code_agent",
+                "input": {}
+            },
+            {
+                "agent": "automation_agent",
+                "input": {}
+            }
         ]
 
-        return TaskGraph(
-            workflow_id=workflow_id,
-            tasks=tasks
+    def _llm_plan(self, query: str) -> List[Dict]:
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a planner agent. Output JSON only."
+                },
+                {
+                    "role": "user",
+                    "content": f"Create a step-by-step agent plan for: {query}"
+                }
+            ]
         )
+
+        return eval(response.choices[0].message.content)

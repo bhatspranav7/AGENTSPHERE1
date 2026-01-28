@@ -4,3 +4,8 @@ sqlalchemy
 psycopg2-binary
 redis
 python-dotenv
+
+pydantic>=2.0
+pydantic-settings>=2.0
+openai>=1.0.0
+
