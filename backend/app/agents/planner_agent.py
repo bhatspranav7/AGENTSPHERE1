@@ -1,61 +1,53 @@
-# app/agents/planner_agent.py
+import json
+import logging
 
-import os
-from typing import List, Dict
+from backend.app.core.llm_client import LLMClient
+from backend.app.core.prompts import PLANNER_SYSTEM_PROMPT
+from backend.app.models.execution_plan import ExecutionPlan
+
+logger = logging.getLogger(__name__)
 
 
 class PlannerAgent:
+    """
+    LLM-powered Planner Agent.
+    """
+
     def __init__(self):
-        self.llm_enabled = False
-        self.client = None
+        self.llm = LLMClient()
 
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            try:
-                from openai import OpenAI
-                self.client = OpenAI(api_key=api_key)
-                self.llm_enabled = True
-            except Exception as e:
-                print(f"⚠️ OpenAI disabled: {e}")
-
-    def plan(self, query: str) -> List[Dict]:
-        """
-        If LLM is enabled → use it
-        Else → fallback static planner
-        """
-
-        if self.llm_enabled:
-            return self._llm_plan(query)
-
-        # 🔹 SAFE FALLBACK (NO LLM)
-        return [
+    def create_plan(self, user_objective: str) -> ExecutionPlan:
+        messages = [
+            {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
             {
-                "agent": "research_agent",
-                "input": {"query": query}
+                "role": "user",
+                "content": f"""
+User objective:
+{user_objective}
+
+Return ONLY valid JSON matching this schema:
+{{
+  "user_objective": string,
+  "steps": [
+    {{
+      "step_id": number,
+      "agent": "research | code | automation | supervisor",
+      "objective": string,
+      "inputs": [string],
+      "expected_output": string
+    }}
+  ]
+}}
+""",
             },
-            {
-                "agent": "code_agent",
-                "input": {}
-            },
-            {
-                "agent": "automation_agent",
-                "input": {}
-            }
         ]
 
-    def _llm_plan(self, query: str) -> List[Dict]:
-        response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a planner agent. Output JSON only."
-                },
-                {
-                    "role": "user",
-                    "content": f"Create a step-by-step agent plan for: {query}"
-                }
-            ]
-        )
+        response = self.llm.generate(messages)
+        raw_output = response["content"]
 
-        return eval(response.choices[0].message.content)
+        try:
+            parsed = json.loads(raw_output)
+        except json.JSONDecodeError as e:
+            raise ValueError("Planner returned invalid JSON") from e
+
+        return ExecutionPlan.model_validate(parsed)
