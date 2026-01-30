@@ -1,22 +1,38 @@
-import json
 import logging
+import uuid
 
 from backend.app.core.llm_client import LLMClient
 from backend.app.core.prompts import PLANNER_SYSTEM_PROMPT
-from backend.app.models.execution_plan import ExecutionPlan
+from backend.app.agents.supervisor_agent import SupervisorAgent
+from backend.app.models.execution import ExecutionRun
+from backend.app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
 
 
 class PlannerAgent:
     """
-    LLM-powered Planner Agent.
+    Planner generates plans.
+    Supervisor validates and approves them.
     """
 
     def __init__(self):
         self.llm = LLMClient()
+        self.supervisor = SupervisorAgent()
+        self.db = SessionLocal()
 
-    def create_plan(self, user_objective: str) -> ExecutionPlan:
+    def create_plan(self, user_objective: str):
+        execution_id = uuid.uuid4()
+
+        run = ExecutionRun(
+            execution_id=execution_id,
+            user_objective=user_objective,
+            source="ollama",
+            status="planned",
+        )
+        self.db.add(run)
+        self.db.commit()
+
         messages = [
             {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
             {
@@ -25,29 +41,30 @@ class PlannerAgent:
 User objective:
 {user_objective}
 
-Return ONLY valid JSON matching this schema:
-{{
-  "user_objective": string,
-  "steps": [
-    {{
-      "step_id": number,
-      "agent": "research | code | automation | supervisor",
-      "objective": string,
-      "inputs": [string],
-      "expected_output": string
-    }}
-  ]
-}}
+Return ONLY valid JSON matching schema.
 """,
             },
         ]
 
-        response = self.llm.generate(messages)
-        raw_output = response["content"]
+        attempt = 0
 
-        try:
-            parsed = json.loads(raw_output)
-        except json.JSONDecodeError as e:
-            raise ValueError("Planner returned invalid JSON") from e
+        while True:
+            response = self.llm.generate(messages)
+            raw_output = response["content"]
 
-        return ExecutionPlan.model_validate(parsed)
+            approved, plan = self.supervisor.review_plan(
+                execution_id=execution_id,
+                raw_plan_output=raw_output,
+                source="ollama",
+                attempt=attempt,
+            )
+
+            if approved:
+                return execution_id, plan
+
+            attempt += 1
+
+            if attempt > self.supervisor.MAX_RETRIES:
+                raise RuntimeError(
+                    f"Execution {execution_id} rejected by Supervisor"
+                )

@@ -4,7 +4,6 @@ from pathlib import Path
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# ALWAYS load backend/.env explicitly
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(dotenv_path=ENV_PATH)
 
@@ -22,6 +21,7 @@ class AppConfig(BaseModel):
     app_name: str = "AgentSphere"
     environment: str = "development"
     log_level: str = "INFO"
+    database_url: str
     llm: LLMConfig
 
 
@@ -30,6 +30,7 @@ def get_config() -> AppConfig:
     return AppConfig(
         environment=os.getenv("ENVIRONMENT", "development"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
+        database_url=os.getenv("DATABASE_URL"),
         llm=LLMConfig(
             provider=os.getenv("LLM_PROVIDER", "ollama"),
             model=os.getenv("OLLAMA_MODEL", "llama3.2:latest"),

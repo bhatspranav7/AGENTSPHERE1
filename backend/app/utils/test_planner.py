@@ -3,11 +3,12 @@ from backend.app.agents.planner_agent import PlannerAgent
 
 def main():
     planner = PlannerAgent()
-    plan = planner.create_plan(
+    execution_id, plan = planner.create_plan(
         "Build a FastAPI CRUD API with PostgreSQL"
     )
 
-    print("\n=== EXECUTION PLAN ===\n")
+    print("\n=== EXECUTION APPROVED ===\n")
+    print(f"Execution ID: {execution_id}")
     print(plan.model_dump_json(indent=2))
 
 
