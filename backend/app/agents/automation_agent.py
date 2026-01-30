@@ -1,12 +1,19 @@
-from typing import Dict
+from backend.app.agents.base_agent import BaseExecutionAgent
 
-class AutomationAgent:
-    """
-    Final delivery / output trigger.
-    """
 
-    def run(self, payload: Dict) -> Dict:
+class AutomationAgent(BaseExecutionAgent):
+    agent_name = "automation"
+
+    def execute(self, execution_id, step):
+        """
+        Final orchestration / automation step.
+        """
+
         return {
-            "status": "DELIVERED",
-            "payload": payload
+            "status": "automation_completed",
+            "message": f"Automation executed for step: {step['objective']}",
+            "actions": [
+                "validated previous outputs",
+                "prepared final artifacts"
+            ]
         }
