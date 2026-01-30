@@ -18,10 +18,11 @@ logger = logging.getLogger(__name__)
 
 class SupervisorAgent:
     """
-    Supervisor is the final authority.
+    Intelligent Supervisor:
     - Validates planner output
-    - Decides retry / approve / reject
-    - Persists all decisions and versions
+    - Classifies failures
+    - Controls retries
+    - Persists explainable decisions
     """
 
     MAX_RETRIES = 2
@@ -29,42 +30,48 @@ class SupervisorAgent:
     def __init__(self):
         self.db: Session = SessionLocal()
 
-    # ------------------------
+    # ========================
     # PUBLIC ENTRY POINT
-    # ------------------------
+    # ========================
     def review_plan(
         self,
         execution_id,
         raw_plan_output: str,
         source: str,
         attempt: int,
-    ) -> Tuple[bool, Optional[PlanSchema]]:
+    ) -> Tuple[bool, Optional[PlanSchema], Optional[str]]:
         """
         Returns:
         - approved (bool)
-        - validated ExecutionPlan (or None)
+        - validated plan (or None)
+        - retry_hint (or None)
         """
 
-        plan_json, error = self._parse_json(raw_plan_output)
+        plan_json, parse_error = self._parse_json(raw_plan_output)
+        version = self._next_version(execution_id)
 
-        version = self._get_next_version(execution_id)
-
-        if error:
+        # ------------------------
+        # JSON PARSE FAILURE
+        # ------------------------
+        if parse_error:
             self._persist_plan(
                 execution_id,
                 version,
                 None,
-                {"error": error},
+                {"type": "invalid_json", "error": parse_error},
             )
 
             return self._handle_failure(
                 execution_id,
                 attempt,
-                reason="Invalid JSON from planner",
-                error=error,
+                failure_type="invalid_json",
+                reason="Planner returned invalid JSON",
+                retry_hint="Return ONLY valid JSON. Do not include explanations.",
             )
 
-        # Schema validation
+        # ------------------------
+        # SCHEMA VALIDATION FAILURE
+        # ------------------------
         try:
             validated_plan = PlanSchema.model_validate(plan_json)
         except ValidationError as ve:
@@ -78,11 +85,14 @@ class SupervisorAgent:
             return self._handle_failure(
                 execution_id,
                 attempt,
-                reason="Schema validation failed",
-                error=str(ve),
+                failure_type="schema_error",
+                reason="Planner output failed schema validation",
+                retry_hint="Fix missing or incorrect fields. Follow schema strictly.",
             )
 
-        # SUCCESS PATH
+        # ------------------------
+        # SUCCESS
+        # ------------------------
         self._persist_plan(
             execution_id,
             version,
@@ -94,55 +104,56 @@ class SupervisorAgent:
             execution_id,
             decision="approved",
             reason="Plan validated successfully",
-            metadata={"source": source},
+            metadata={"source": source, "version": version},
         )
 
         self._update_run_status(execution_id, "approved")
 
-        return True, validated_plan
+        return True, validated_plan, None
 
-    # ------------------------
-    # INTERNAL HELPERS
-    # ------------------------
-    def _parse_json(self, raw: str):
-        try:
-            return json.loads(raw), None
-        except json.JSONDecodeError as e:
-            return None, str(e)
-
+    # ========================
+    # FAILURE HANDLING
+    # ========================
     def _handle_failure(
         self,
         execution_id,
         attempt: int,
+        failure_type: str,
         reason: str,
-        error: str,
+        retry_hint: str,
     ):
         if attempt < self.MAX_RETRIES:
             self._persist_decision(
                 execution_id,
                 decision="retry",
                 reason=reason,
-                metadata={"attempt": attempt, "error": error},
+                metadata={
+                    "attempt": attempt,
+                    "failure_type": failure_type,
+                },
             )
-            return False, None
+            return False, None, retry_hint
 
         self._persist_decision(
             execution_id,
             decision="rejected",
             reason=f"{reason} (max retries exceeded)",
-            metadata={"error": error},
+            metadata={"failure_type": failure_type},
         )
 
         self._update_run_status(execution_id, "rejected")
-        return False, None
+        return False, None, None
 
-    def _get_next_version(self, execution_id) -> int:
-        count = (
+    # ========================
+    # DB HELPERS
+    # ========================
+    def _next_version(self, execution_id) -> int:
+        return (
             self.db.query(ExecutionPlan)
             .filter(ExecutionPlan.execution_id == execution_id)
             .count()
+            + 1
         )
-        return count + 1
 
     def _persist_plan(
         self,
@@ -151,13 +162,13 @@ class SupervisorAgent:
         plan_json,
         validation_errors,
     ):
-        plan = ExecutionPlan(
+        record = ExecutionPlan(
             execution_id=execution_id,
             version=version,
             plan_json=plan_json,
             validation_errors=validation_errors,
         )
-        self.db.add(plan)
+        self.db.add(record)
         self.db.commit()
 
     def _persist_decision(
@@ -185,3 +196,12 @@ class SupervisorAgent:
         if run:
             run.status = status
             self.db.commit()
+
+    # ========================
+    # UTIL
+    # ========================
+    def _parse_json(self, raw: str):
+        try:
+            return json.loads(raw), None
+        except json.JSONDecodeError as e:
+            return None, str(e)

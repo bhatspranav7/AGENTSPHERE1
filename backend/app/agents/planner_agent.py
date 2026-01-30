@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 
 class PlannerAgent:
     """
-    Planner generates plans.
-    Supervisor validates and approves them.
+    Planner + Supervisor orchestration.
     """
 
     def __init__(self):
@@ -41,7 +40,7 @@ class PlannerAgent:
 User objective:
 {user_objective}
 
-Return ONLY valid JSON matching schema.
+Return ONLY valid JSON matching the required schema.
 """,
             },
         ]
@@ -52,7 +51,7 @@ Return ONLY valid JSON matching schema.
             response = self.llm.generate(messages)
             raw_output = response["content"]
 
-            approved, plan = self.supervisor.review_plan(
+            approved, plan, retry_hint = self.supervisor.review_plan(
                 execution_id=execution_id,
                 raw_plan_output=raw_output,
                 source="ollama",
@@ -62,9 +61,17 @@ Return ONLY valid JSON matching schema.
             if approved:
                 return execution_id, plan
 
+            if retry_hint:
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": f"Correction required: {retry_hint}",
+                    }
+                )
+
             attempt += 1
 
             if attempt > self.supervisor.MAX_RETRIES:
                 raise RuntimeError(
-                    f"Execution {execution_id} rejected by Supervisor"
+                    f"Execution {execution_id} rejected after supervisor review"
                 )
