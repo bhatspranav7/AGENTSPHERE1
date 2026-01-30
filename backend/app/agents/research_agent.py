@@ -1,23 +1,15 @@
-from typing import Dict, Any
-from app.memory.agent_memory import AgentMemory
+from backend.app.agents.base_agent import BaseExecutionAgent
 
-class ResearchAgent:
-    name = "research_agent"
 
-    def run(self, topic: str, workflow_id: str) -> Dict[str, Any]:
-        output = {
-            "summary": f"Research completed on topic: {topic}",
-            "confidence": 0.92
+class ResearchAgent(BaseExecutionAgent):
+    agent_name = "research"
+
+    def execute(self, execution_id, step):
+        return {
+            "summary": f"Research completed for: {step['objective']}",
+            "assumptions": [
+                "Standard constraints apply",
+                "No external blockers identified"
+            ],
+            "notes": "Deterministic research output"
         }
-
-        AgentMemory.save_workflow_memory(
-            workflow_id,
-            {
-                "agent": self.name,
-                "output": output
-            }
-        )
-
-        AgentMemory.save_agent_memory(self.name, output)
-
-        return output

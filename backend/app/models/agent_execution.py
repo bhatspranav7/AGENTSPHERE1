@@ -1,9 +1,8 @@
 from datetime import datetime
-
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
-from backend.app.models.execution import Base
+from backend.app.db.base import Base
 
 
 class AgentExecution(Base):

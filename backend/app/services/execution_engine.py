@@ -6,13 +6,9 @@ from backend.app.models.agent_execution import AgentExecution
 
 
 class ExecutionEngine:
-    """
-    Executes approved plans step-by-step using registered agents.
-    """
-
     def __init__(self):
         self.db = SessionLocal()
-        self.agent_map = {
+        self.agents = {
             "research": ResearchAgent(),
             "code": CodeAgent(),
             "automation": AutomationAgent(),
@@ -20,15 +16,12 @@ class ExecutionEngine:
 
     def run(self, execution_id, plan):
         for step in plan.steps:
-            agent = self.agent_map.get(step.agent)
+            agent = self.agents.get(step.agent)
 
             if not agent:
-                raise ValueError(f"No agent registered for agent '{step.agent}'")
+                raise ValueError(f"No agent registered for {step.agent}")
 
-            output = agent.execute(
-                execution_id=execution_id,
-                step=step.model_dump(),
-            )
+            output = agent.execute(execution_id, step.model_dump())
 
             record = AgentExecution(
                 execution_id=execution_id,

@@ -1,18 +1,15 @@
+from typing import List
 from pydantic import BaseModel, Field
-from typing import List, Literal
 
 
-AgentType = Literal["research", "code", "automation", "supervisor"]
-
-
-class PlanStep(BaseModel):
-    step_id: int = Field(..., description="Sequential step number")
-    agent: AgentType = Field(..., description="Agent responsible for this step")
-    objective: str = Field(..., description="Goal of this step")
+class PlanStepSchema(BaseModel):
+    step_id: int = Field(..., example=1)
+    agent: str = Field(..., example="research")
+    objective: str = Field(..., example="Analyze requirements")
     inputs: List[str] = Field(default_factory=list)
-    expected_output: str
+    expected_output: str = Field(..., example="Clear understanding")
 
 
-class ExecutionPlan(BaseModel):
+class ExecutionPlanSchema(BaseModel):
     user_objective: str
-    steps: List[PlanStep]
+    steps: List[PlanStepSchema]
