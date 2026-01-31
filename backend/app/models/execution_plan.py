@@ -1,15 +1,17 @@
-from typing import List
-from pydantic import BaseModel, Field
+from sqlalchemy import Column, Integer, JSON, DateTime, String
+from sqlalchemy.dialects.postgresql import UUID
+from datetime import datetime
+import uuid
+
+from backend.app.db.engine import Base
 
 
-class PlanStepSchema(BaseModel):
-    step_id: int = Field(..., example=1)
-    agent: str = Field(..., example="research")
-    objective: str = Field(..., example="Analyze requirements")
-    inputs: List[str] = Field(default_factory=list)
-    expected_output: str = Field(..., example="Clear understanding")
+class ExecutionPlan(Base):
+    __tablename__ = "execution_plans"
 
-
-class ExecutionPlanSchema(BaseModel):
-    user_objective: str
-    steps: List[PlanStepSchema]
+    id = Column(Integer, primary_key=True)
+    execution_id = Column(UUID(as_uuid=True), nullable=False)
+    version = Column(Integer, nullable=False)
+    plan_json = Column(JSON, nullable=False)
+    validation_errors = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)

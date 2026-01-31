@@ -1,77 +1,51 @@
-import logging
 import uuid
+from datetime import datetime
 
-from backend.app.core.llm_client import LLMClient
-from backend.app.core.prompts import PLANNER_SYSTEM_PROMPT
-from backend.app.agents.supervisor_agent import SupervisorAgent
-from backend.app.models.execution import ExecutionRun
 from backend.app.db.session import SessionLocal
-
-logger = logging.getLogger(__name__)
+from backend.app.models.execution import ExecutionRun
+from backend.app.models.execution_plan import ExecutionPlan
 
 
 class PlannerAgent:
-    """
-    Planner + Supervisor orchestration.
-    """
-
-    def __init__(self):
-        self.llm = LLMClient()
-        self.supervisor = SupervisorAgent()
-        self.db = SessionLocal()
-
     def create_plan(self, user_objective: str):
+        db = SessionLocal()
+
         execution_id = uuid.uuid4()
 
         run = ExecutionRun(
             execution_id=execution_id,
-            user_objective=user_objective,
-            source="ollama",
-            status="planned",
+            status="created",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
         )
-        self.db.add(run)
-        self.db.commit()
 
-        messages = [
-            {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"""
-User objective:
-{user_objective}
+        db.add(run)
 
-Return ONLY valid JSON matching the required schema.
-""",
-            },
-        ]
+        plan = {
+            "steps": [
+                {
+                    "step_id": 1,
+                    "agent": "ResearchAgent",
+                    "task": f"Research objective: {user_objective}",
+                },
+                {
+                    "step_id": 2,
+                    "agent": "CodeAgent",
+                    "task": "Generate initial implementation",
+                },
+            ]
+        }
 
-        attempt = 0
+        plan_record = ExecutionPlan(
+            execution_id=execution_id,
+            version=1,
+            plan_json=plan,
+            validation_errors=None,
+            created_at=datetime.utcnow(),
+        )
 
-        while True:
-            response = self.llm.generate(messages)
-            raw_output = response["content"]
+        db.add(plan_record)
+        db.commit()
+        db.close()
 
-            approved, plan, retry_hint = self.supervisor.review_plan(
-                execution_id=execution_id,
-                raw_plan_output=raw_output,
-                source="ollama",
-                attempt=attempt,
-            )
-
-            if approved:
-                return execution_id, plan
-
-            if retry_hint:
-                messages.append(
-                    {
-                        "role": "system",
-                        "content": f"Correction required: {retry_hint}",
-                    }
-                )
-
-            attempt += 1
-
-            if attempt > self.supervisor.MAX_RETRIES:
-                raise RuntimeError(
-                    f"Execution {execution_id} rejected after supervisor review"
-                )
+        return execution_id, plan

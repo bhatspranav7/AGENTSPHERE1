@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from uuid import UUID
 
 from backend.app.api.schemas import (
@@ -6,13 +6,18 @@ from backend.app.api.schemas import (
     ExecutionResponse,
     AgentExecutionResponse,
 )
+from backend.app.api.dependencies import api_key_auth
 from backend.app.agents.planner_agent import PlannerAgent
 from backend.app.services.execution_engine import ExecutionEngine
 from backend.app.db.session import SessionLocal
-from backend.app.models.execution import ExecutionRun, ExecutionPlan
+from backend.app.models.execution import ExecutionRun
 from backend.app.models.agent_execution import AgentExecution
 
-router = APIRouter(prefix="/executions", tags=["Executions"])
+router = APIRouter(
+    prefix="/executions",
+    tags=["Executions"],
+    dependencies=[Depends(api_key_auth)],
+)
 
 
 @router.post("/start", response_model=ExecutionResponse)
@@ -43,27 +48,6 @@ def get_execution(execution_id: UUID):
         execution_id=run.execution_id,
         status=run.status,
     )
-
-
-@router.get("/{execution_id}/plans")
-def get_execution_plans(execution_id: UUID):
-    db = SessionLocal()
-    plans = (
-        db.query(ExecutionPlan)
-        .filter(ExecutionPlan.execution_id == execution_id)
-        .order_by(ExecutionPlan.version)
-        .all()
-    )
-
-    return [
-        {
-            "version": p.version,
-            "plan": p.plan_json,
-            "validation_errors": p.validation_errors,
-            "created_at": p.created_at,
-        }
-        for p in plans
-    ]
 
 
 @router.get("/{execution_id}/agents", response_model=list[AgentExecutionResponse])
