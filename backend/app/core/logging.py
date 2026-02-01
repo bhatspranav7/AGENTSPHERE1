@@ -16,8 +16,8 @@ class ContextFilter(logging.Filter):
 
 
 def setup_logging():
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
 
     handler = logging.StreamHandler(sys.stdout)
 
@@ -26,10 +26,13 @@ def setup_logging():
     )
 
     handler.setFormatter(formatter)
-    logger.handlers = [handler]
+    root_logger.handlers = [handler]
 
 
-def get_logger(execution_id: str = None, agent_name: str = None) -> logging.Logger:
-    logger = logging.getLogger(__name__)
+def get_logger(
+    execution_id: Optional[str] = None,
+    agent_name: Optional[str] = None,
+) -> logging.Logger:
+    logger = logging.getLogger("agentsphere")
     logger.addFilter(ContextFilter(execution_id, agent_name))
     return logger
