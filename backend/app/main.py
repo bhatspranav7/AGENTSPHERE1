@@ -1,12 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Core
+from backend.app.core.logging import setup_logging
+
+# Routers
 from backend.app.api.executions import router as executions_router
+from backend.app.api.health import router as health_router
+
+# -------------------------------------------------
+# LOGGING (MUST BE FIRST)
+# -------------------------------------------------
+setup_logging()
 
 # -------------------------------------------------
 # APP INITIALIZATION
 # -------------------------------------------------
-
 app = FastAPI(
     title="AgentSphere",
     description="Enterprise-grade Autonomous Multi-Agent Workflow System",
@@ -16,7 +25,6 @@ app = FastAPI(
 # -------------------------------------------------
 # MIDDLEWARE
 # -------------------------------------------------
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],   # tighten later when UI is fixed
@@ -28,17 +36,5 @@ app.add_middleware(
 # -------------------------------------------------
 # ROUTERS
 # -------------------------------------------------
-
 app.include_router(executions_router)
-
-# -------------------------------------------------
-# HEALTH CHECK
-# -------------------------------------------------
-
-@app.get("/")
-def health_check():
-    return {
-        "status": "running",
-        "service": "AgentSphere",
-        "message": "AgentSphere backend running 🚀"
-    }
+app.include_router(health_router)

@@ -1,18 +1,33 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
+from backend.app.core.config import settings
 
-from backend.app.core.config import get_config
-
-config = get_config()
+# -------------------------------------------------
+# DATABASE ENGINE
+# -------------------------------------------------
 
 engine = create_engine(
-    config.database_url,
-    echo=False,
-    future=True,
+    settings.DATABASE_URL,
+    pool_pre_ping=True,
 )
 
+# -------------------------------------------------
+# SESSION FACTORY
+# -------------------------------------------------
+
 SessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=False,
     autocommit=False,
+    autoflush=False,
+    bind=engine,
 )
+
+# -------------------------------------------------
+# DEPENDENCY (USED BY FASTAPI)
+# -------------------------------------------------
+
+def get_db() -> Session:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

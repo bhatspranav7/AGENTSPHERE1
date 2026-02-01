@@ -1,7 +1,16 @@
-from backend.app.config.settings import settings
+from fastapi import Header, HTTPException, Depends
+from backend.app.core.config import settings
 
 
-class APIKeyValidator:
-    @staticmethod
-    def validate(api_key: str) -> bool:
-        return api_key in settings.api_key_list
+def verify_api_key(x_api_key: str = Header(...)):
+    """
+    Verifies X-API-Key header for all protected endpoints.
+    """
+
+    if x_api_key != settings.API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "Invalid or missing API key"},
+        )
+
+    return True
