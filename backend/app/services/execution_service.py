@@ -1,4 +1,5 @@
 import uuid
+import time
 from sqlalchemy.orm import Session
 
 from backend.app.models.execution_run import ExecutionRun, ExecutionStatus
@@ -9,6 +10,20 @@ from backend.app.core.exceptions import ExecutionError
 class ExecutionService:
     def __init__(self, db: Session):
         self.db = db
+
+    # -----------------------------
+    # MOCK PRIMARY AGENT
+    # -----------------------------
+    def _primary_agent(self):
+        # Simulate failure scenario
+        raise Exception("Primary agent failed")
+
+    # -----------------------------
+    # MOCK FALLBACK AGENT
+    # -----------------------------
+    def _fallback_agent(self):
+        # Simulate successful fallback
+        return "Fallback agent executed successfully"
 
     # -----------------------------
     # START EXECUTION
@@ -32,7 +47,33 @@ class ExecutionService:
             self.db.commit()
             logger.info("Execution running")
 
-            logger.info("Executing agents (placeholder)")
+            # -----------------------------
+            # RETRY + FALLBACK LOGIC
+            # -----------------------------
+            success = False
+
+            for attempt in range(2):
+                try:
+                    logger.info(f"Primary agent attempt {attempt + 1}")
+                    self._primary_agent()
+                    success = True
+                    break
+                except Exception as e:
+                    logger.warning(f"Primary agent failed on attempt {attempt + 1}: {str(e)}")
+                    time.sleep(1)
+
+            if not success:
+                logger.info("Switching to fallback agent")
+                try:
+                    self._fallback_agent()
+                    success = True
+                    logger.info("Fallback agent executed successfully")
+                except Exception as e:
+                    logger.error(f"Fallback agent failed: {str(e)}")
+                    success = False
+
+            if not success:
+                raise Exception("All agents failed")
 
             run.status = ExecutionStatus.completed
             self.db.commit()
@@ -60,7 +101,7 @@ class ExecutionService:
         )
 
     # -----------------------------
-    # LIST EXECUTIONS (NEW)
+    # LIST EXECUTIONS
     # -----------------------------
     def list_executions(self, limit: int = 10):
         return (
@@ -69,3 +110,4 @@ class ExecutionService:
             .limit(limit)
             .all()
         )
+    
