@@ -1,29 +1,21 @@
 import uuid
-import time
 from sqlalchemy.orm import Session
 
 from backend.app.models.execution_run import ExecutionRun, ExecutionStatus
 from backend.app.core.logging import get_logger
 from backend.app.core.exceptions import ExecutionError
 
+# Import Agents
+from backend.app.agents.planner_agent import PlannerAgent
+from backend.app.agents.research_agent import ResearchAgent
+from backend.app.agents.code_agent import CodeAgent
+from backend.app.agents.automation_agent import AutomationAgent
+from backend.app.agents.supervisor_agent import SupervisorAgent
+
 
 class ExecutionService:
     def __init__(self, db: Session):
         self.db = db
-
-    # -----------------------------
-    # MOCK PRIMARY AGENT
-    # -----------------------------
-    def _primary_agent(self):
-        # Simulate failure scenario
-        raise Exception("Primary agent failed")
-
-    # -----------------------------
-    # MOCK FALLBACK AGENT
-    # -----------------------------
-    def _fallback_agent(self):
-        # Simulate successful fallback
-        return "Fallback agent executed successfully"
 
     # -----------------------------
     # START EXECUTION
@@ -35,58 +27,71 @@ class ExecutionService:
         logger.info("Starting execution request")
 
         try:
+            # Create execution record
             run = ExecutionRun(
                 execution_id=execution_id,
                 status=ExecutionStatus.created,
             )
             self.db.add(run)
             self.db.commit()
+
             logger.info("Execution created")
 
+            # Update status to running
             run.status = ExecutionStatus.running
             self.db.commit()
+
             logger.info("Execution running")
 
             # -----------------------------
-            # RETRY + FALLBACK LOGIC
+            # AGENT ORCHESTRATION
             # -----------------------------
-            success = False
 
-            for attempt in range(2):
-                try:
-                    logger.info(f"Primary agent attempt {attempt + 1}")
-                    self._primary_agent()
-                    success = True
-                    break
-                except Exception as e:
-                    logger.warning(f"Primary agent failed on attempt {attempt + 1}: {str(e)}")
-                    time.sleep(1)
+            planner = PlannerAgent()
+            researcher = ResearchAgent()
+            coder = CodeAgent()
+            automation = AutomationAgent()
+            supervisor = SupervisorAgent()
 
-            if not success:
-                logger.info("Switching to fallback agent")
-                try:
-                    self._fallback_agent()
-                    success = True
-                    logger.info("Fallback agent executed successfully")
-                except Exception as e:
-                    logger.error(f"Fallback agent failed: {str(e)}")
-                    success = False
+            logger.info("Planner agent running")
+            plan = planner.run(user_objective)
 
-            if not success:
-                raise Exception("All agents failed")
+            logger.info("Research agent running")
+            research = researcher.run(plan)
+
+            logger.info("Code agent running")
+            code = coder.run(research)
+
+            logger.info("Automation agent running")
+            result = automation.run(code)
+
+            logger.info("Supervisor agent validating")
+            supervisor.run(result)
+
+            logger.info("All agents executed successfully")
+
+            # -----------------------------
+            # MARK EXECUTION COMPLETED
+            # -----------------------------
 
             run.status = ExecutionStatus.completed
             self.db.commit()
+
             logger.info("Execution completed successfully")
 
             return str(execution_id)
 
         except Exception as e:
             self.db.rollback()
+
             logger.error(f"Execution failed: {str(e)}")
 
-            run.status = ExecutionStatus.failed
-            self.db.commit()
+            # Mark failed if record exists
+            try:
+                run.status = ExecutionStatus.failed
+                self.db.commit()
+            except Exception:
+                pass
 
             raise ExecutionError("Execution failed internally")
 
@@ -110,4 +115,3 @@ class ExecutionService:
             .limit(limit)
             .all()
         )
-    
