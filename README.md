@@ -1,5 +1,9 @@
 # AgentSphere
 
+**Live demo → [agentsphere-st5r.onrender.com](https://agentsphere-st5r.onrender.com)** · [API docs](https://agentsphere-st5r.onrender.com/docs)
+
+> Free-tier hosting: the first load after a quiet spell takes ~30–50s while the server wakes up. Try launching with **Recoverable faults** and open a retried step.
+
 **Autonomous multi-agent workflow system.** Give it one objective. A Planner turns it into a dependency graph, specialist agents run it in parallel, and a **Supervisor** approves, retries or aborts every single output. Every plan, attempt and verdict is persisted and replayable.
 
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white) ![React](https://img.shields.io/badge/React-20232a?logo=react&logoColor=61dafb) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169e1?logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-dc382d?logo=redis&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ed?logo=docker&logoColor=white)
