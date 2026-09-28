@@ -1,0 +1,32 @@
+# Render Blueprint: New > Blueprint > pick this repo.
+# Render allows one free Postgres per account, so the database is external:
+# paste a Postgres URL (e.g. a free Neon database) into DATABASE_URL when prompted.
+services:
+  - type: web
+    name: agentsphere
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      # Admin key for curl / Swagger (shown in the Render dashboard)
+      - key: API_KEY
+        generateValue: true
+      # Public key the UI uses automatically; rate limited per IP
+      - key: DEMO_API_KEY
+        generateValue: true
+      - key: DEMO_RATE_LIMIT_PER_HOUR
+        value: "15"
+      # Optional: real LLM. Leave empty for simulated mode.
+      # Groq free tier: LLM_BASE_URL=https://api.groq.com/openai/v1  LLM_MODEL=llama-3.3-70b-versatile
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
+      # Optional: Redis / Key Value URL. Without it the app uses in-memory memory + rate limits.
+      - key: REDIS_URL
+        sync: false

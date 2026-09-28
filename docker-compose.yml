@@ -1,36 +1,42 @@
+# Full stack:  docker compose up --build   ->  http://localhost:8000
+# Real LLM:    set LLM_API_KEY (and LLM_BASE_URL / LLM_MODEL) in your shell or a root .env
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: agentsphere1-backend
-    env_file:
-      - backend/.env
+  app:
+    build: .
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://agentsphere:agentsphere@postgres:5432/agentsphere_db
+      REDIS_URL: redis://redis:6379/0
+      API_KEY: ${API_KEY:-agentsphere-dev-key}
+      DEMO_API_KEY: ${DEMO_API_KEY:-agentsphere-demo}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
     restart: unless-stopped
 
   postgres:
     image: postgres:15
-    container_name: agentsphere_postgres
     environment:
       POSTGRES_USER: agentsphere
       POSTGRES_PASSWORD: agentsphere
       POSTGRES_DB: agentsphere_db
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentsphere -d agentsphere_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     restart: unless-stopped
 
   redis:
-    image: redis:7
-    container_name: agentsphere_redis
-    ports:
-      - "6379:6379"
+    image: redis:7-alpine
     volumes:
       - redis_data:/data
     restart: unless-stopped
