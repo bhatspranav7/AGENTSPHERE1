@@ -120,6 +120,10 @@ def _snake(name: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
+def _an(word: str) -> str:
+    return ("an " if word[:1].lower() in "aeiou" else "a ") + word
+
+
 def _topic(objective: str) -> str:
     t = re.sub(r"\s+", " ", objective.strip().rstrip("."))
     return t[0].upper() + t[1:] if t else "the workflow"
@@ -184,7 +188,7 @@ class SimulatedLLM:
         if "risk" in step["title"].lower() or "compliance" in step["objective"].lower():
             findings = [
                 f"Compliance baseline: {d.compliance}.",
-                f"Every state change of a {d.entity} must be attributable to a user or agent.",
+                f"Every state change of {_an(d.entity)} must be attributable to a user or agent.",
                 f"Integrations with {d.systems[0]} need idempotent retries; duplicate events are the norm, not the exception.",
             ]
             risks = list(d.risks)
@@ -195,14 +199,14 @@ class SimulatedLLM:
         else:
             findings = [
                 f"Primary users are {d.stakeholders}.",
-                f"The core record is a {d.entity} moving through {' → '.join(d.statuses)}.",
+                f"The core record is {_an(d.entity)} moving through {' → '.join(d.statuses)}.",
                 f"Upstream/downstream systems: {', '.join(d.systems)}.",
                 f"The success metric that matters most is {d.kpi}.",
             ]
             risks = [d.risks[rng.randrange(len(d.risks))]]
             recs = [f"Model the {d.entity} lifecycle as an explicit state machine.",
                     f"Expose a small REST API first; integrate {d.systems[0]} second."]
-            summary = f"Requirements for {topic.lower()}: a {d.entity} workflow serving {d.stakeholders}, measured by {d.kpi}."
+            summary = f"Requirements for {topic.lower()}: {_an(d.entity)} workflow serving {d.stakeholders}, measured by {d.kpi}."
         return {"summary": summary, "findings": findings, "risks": risks, "recommendations": recs}
 
     # -------------------------------------------------
